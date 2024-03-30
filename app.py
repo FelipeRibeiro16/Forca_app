@@ -1,6 +1,6 @@
 from fastapi import FastAPI, WebSocket, HTTPException, WebSocketDisconnect
 from pydantic import BaseModel
-from typing import List, Dict
+from typing import List, Dict, Optional
 import json
 
 app = FastAPI()
@@ -30,7 +30,7 @@ class ConnectionManager:
 
 class Game(BaseModel):
     word: str
-    theme: str
+    theme: Optional[str] = None
     letters: List[str] = []
     errors: int = 0
 
@@ -56,12 +56,18 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str):
             data = await websocket.receive_text()
             command, value = data.split(" ", 1)
             if command == "start_game":
-                word, theme = value.split(" ", 1)
                 if game_id in games:
                     await websocket.send_text("Game with this ID already exists")
                 else:
                     games[game_id] = Game(
-                        word=word, theme=theme, letters=[], errors=0)
+                        word=value, theme=None, letters=[], errors=0)
+                    game_json = json.dumps(games[game_id].__dict__)
+                    await manager.send_personal_message(game_json, websocket)
+            elif command == "send_theme":
+                if game_id not in games:
+                    await websocket.send_text("Game not found")
+                else:
+                    games[game_id].theme = value
                     game_json = json.dumps(games[game_id].__dict__)
                     await manager.send_personal_message(game_json, websocket)
             elif command == "get_game":
@@ -86,13 +92,12 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str):
                     games[game_id].errors = errors
                     game_json = json.dumps(games[game_id].__dict__)
                     await manager.broadcast(game_json)
-            elif command == "new_word_and_theme":
-                word, theme = value.split(" ", 1)
+            elif command == "new_game":
                 if game_id not in games:
                     await websocket.send_text("Game not found")
                 else:
-                    games[game_id].word = word
-                    games[game_id].theme = theme
+                    games[game_id].word = value
+                    games[game_id].theme = None
                     games[game_id].letters = []
                     games[game_id].errors = 0
                     game_json = json.dumps(games[game_id].__dict__)
