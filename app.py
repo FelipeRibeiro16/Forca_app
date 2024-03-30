@@ -5,6 +5,7 @@ import json
 
 app = FastAPI()
 
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -26,15 +27,23 @@ class ConnectionManager:
     async def total_connections(self):
         return len(self.active_connections)
 
+
 class Game(BaseModel):
     word: str
     theme: str
     letters: List[str] = []
     errors: int = 0
 
+
 games: Dict[str, Game] = {}
 
 manager = ConnectionManager()
+
+
+@app.get("/")
+async def get():
+    return {"message": "Hello World"}
+
 
 @app.websocket("/ws/{game_id}")
 async def websocket_endpoint(websocket: WebSocket, game_id: str):
@@ -51,7 +60,8 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str):
                 if game_id in games:
                     await websocket.send_text("Game with this ID already exists")
                 else:
-                    games[game_id] = Game(word=word, theme=theme, letters=[], errors=0)
+                    games[game_id] = Game(
+                        word=word, theme=theme, letters=[], errors=0)
                     game_json = json.dumps(games[game_id].__dict__)
                     await manager.send_personal_message(game_json, websocket)
             elif command == "get_game":
